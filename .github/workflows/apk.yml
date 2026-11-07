@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,9 +23,20 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: APK derle
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk IffetKalkani.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: IffetKalkani-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: IffetKalkani.apk
+
+      - name: Releases sayfasına koy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.${{ github.run_number }}" IffetKalkani.apk \
+            --title "İffet Kalkanı v1.${{ github.run_number }}" \
+            --notes "Telefondan IffetKalkani.apk dosyasına bas, indir ve kur." \
+            --latest
