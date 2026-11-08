@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
 class KalkanService : AccessibilityService() {
@@ -93,29 +94,87 @@ class KalkanService : AccessibilityService() {
         }
     }
 
+    private var lastDomain: String? = null
+    private var lastTitle = ""
+
     private fun checkBrowser(pkg: String) {
         val root = rootInActiveWindow ?: return
         val node = browsers[pkg]!!.firstNotNullOfOrNull { id ->
             root.findAccessibilityNodeInfosByViewId(id).firstOrNull()
-        } ?: return
-        if (node.isFocused) return // kullanıcı yazıyor; yazılanı 3. adım zaten kontrol ediyor
-        val text = node.text?.toString()?.trim() ?: return
-        if (text.isEmpty() || text == lastUrl) return
-        lastUrl = text
-
-        if (Detector.hasBadWord(this, text)) {
-            punish(pkg, Store.SITE_BAN_MS, "+18 bir site açmaya çalıştın.")
-            return
         }
-        val domain = Detector.domainOf(text) ?: return
-        when {
-            Detector.isBlockedDomain(domain) || Store.isCachedAdult(this, domain) ->
-                punish(pkg, Store.SITE_BAN_MS, "+18 bir site açmaya çalıştın.")
-            Detector.isSafeDomain(domain) || Store.isCachedSafe(this, domain) -> Unit
-            else -> GeminiChecker.check(this, domain) {
-                punish(pkg, Store.SITE_BAN_MS, "Bu site (+18) olarak tespit edildi: $domain")
+
+        // --- A) Adres çubuğu ---
+        if (node != null && !node.isFocused) { // odaktaysa kullanıcı yazıyor; onu klavye koruması kontrol ediyor
+            val text = node.text?.toString()?.trim().orEmpty()
+            if (text.isNotEmpty() && text != lastUrl) {
+                lastUrl = text
+                lastTitle = ""
+                val domain = Detector.domainOf(text)
+                lastDomain = domain
+
+                if (Detector.hasBadWord(this, text) || (domain != null && Detector.domainLooksAdult(domain))) {
+                    domain?.let { Store.cacheDomain(this, it, true) }
+                    punish(pkg, Store.SITE_BAN_MS, "+18 bir site açmaya çalıştın.")
+                    return
+                }
+                if (domain != null) when {
+                    Detector.isBlockedDomain(domain) || Store.isCachedAdult(this, domain) -> {
+                        punish(pkg, Store.SITE_BAN_MS, "+18 bir site açmaya çalıştın.")
+                        return
+                    }
+                    Detector.isSafeDomain(domain) || Store.isCachedSafe(this, domain) -> Unit
+                    else -> GeminiChecker.check(this, domain) {
+                        punish(pkg, Store.SITE_BAN_MS, "Bu site (+18) olarak tespit edildi: $domain")
+                    }
+                }
             }
         }
+
+        // --- B) Sayfanın adı ve üstte yazan başlıklar. Gemini çalışmasa bile bu her zaman çalışır. ---
+        // Ör: doeda.com açıldı, başlıkta "TÜRKİYENİN EN BÜYÜK P*RNO SİTESİ" yazıyor -> at, 5 dk kilitle.
+        val texts = pageTexts(root)
+        if (texts.isEmpty()) return
+        val joined = texts.joinToString("\n")
+        if (joined == lastTitle) return
+        lastTitle = joined
+        if (texts.any { Detector.hasBadWord(this, it) }) {
+            lastDomain?.let { Store.cacheDomain(this, it, true) } // bir dahaki sefere adresten direkt engellensin
+            punish(pkg, Store.SITE_BAN_MS, "Bu sitenin adında/başlığında +18 içerik var.")
+        }
+    }
+
+    /**
+     * Web sayfasının adını (<title>) ve sayfanın üst kısmındaki ilk yazıları toplar.
+     * Tarayıcılar sayfa adını web içeriğinin kök düğümüne koyar.
+     */
+    private fun pageTexts(root: AccessibilityNodeInfo): List<String> {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var web: AccessibilityNodeInfo? = null
+        var seen = 0
+        while (queue.isNotEmpty() && seen < 300) {
+            val n = queue.removeFirst(); seen++
+            if (n.className?.toString() == "android.webkit.WebView") { web = n; break }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        web ?: return emptyList()
+
+        val out = ArrayList<String>()
+        (web.text ?: web.contentDescription)?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { out.add(it) }
+
+        // Sayfanın üstündeki ilk 40 yazı (logo yazısı, büyük başlık, menü...)
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(web)
+        seen = 0
+        while (stack.isNotEmpty() && seen < 250 && out.size < 40) {
+            val n = stack.removeFirst(); seen++
+            if (n !== web) {
+                (n.text ?: n.contentDescription)?.toString()?.trim()
+                    ?.takeIf { it.length in 2..300 }?.let { out.add(it) }
+            }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { stack.add(it) }
+        }
+        return out
     }
 
     private fun screenMentionsUs(): Boolean {
@@ -130,6 +189,7 @@ class KalkanService : AccessibilityService() {
         val until = System.currentTimeMillis() + ms
         if (canBan(pkg)) Store.ban(this, pkg, until)
         lastUrl = "" // yasak bitip geri dönünce aynı sekme tekrar kontrol edilsin
+        lastTitle = ""
         kick(pkg, until, reason)
     }
 
