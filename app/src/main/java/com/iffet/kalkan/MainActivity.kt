@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private lateinit var keyIn: EditText
     private lateinit var modelIn: EditText
     private lateinit var wordsIn: EditText
+    private lateinit var geminiStatus: TextView
     private lateinit var saveBtn: Button
     private lateinit var lockText: TextView
     private lateinit var finishBtn: Button
@@ -62,17 +63,25 @@ class MainActivity : Activity() {
                     "Bunu açınca İffet Kalkanı dürtü anında silinemez."))
         }; col.addView(adminBtn)
 
-        col.addView(text("\n3) Gemini API anahtarı", 18f, true))
-        col.addView(text("aistudio.google.com adresinden ücretsiz alınır. Bilinmeyen siteler Gemini'ye sorulur (sadece site adı gider). Boş bırakırsan sadece hazır liste ve kelimeler çalışır.", 14f, color = 0xFF555555.toInt()))
+        col.addView(text("\n3) Gemini API anahtarları", 18f, true))
+        col.addView(text("aistudio.google.com adresinden ücretsiz alınır. Her satıra bir anahtar yaz. Birinin kotası dolunca otomatik sıradakine geçer. Bilinmeyen siteler Gemini'ye sorulur (sadece site adı gider).", 14f, color = 0xFF555555.toInt()))
         keyIn = EditText(this).apply {
-            hint = "API anahtarı"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setText(Store.apiKey(this@MainActivity))
+            hint = "Her satıra bir API anahtarı"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            minLines = 2
+            setText(Store.apiKeyText(this@MainActivity))
         }; col.addView(keyIn)
+
+        col.addView(text("Modeller (her satıra bir tane, yukarıdan aşağı denenir)", 15f, true))
         modelIn = EditText(this).apply {
-            hint = "Model (ör. gemini-2.5-flash)"
-            setText(Store.model(this@MainActivity))
+            hint = Store.DEFAULT_MODELS.joinToString("\n")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            minLines = 3
+            setText(Store.modelText(this@MainActivity))
         }; col.addView(modelIn)
+        geminiStatus = text("", 14f, color = 0xFF555555.toInt()); col.addView(geminiStatus)
 
         col.addView(text("\nEkstra yasaklı kelimeler (virgülle ayır)", 18f, true))
         wordsIn = EditText(this).apply {
@@ -125,6 +134,9 @@ class MainActivity : Activity() {
             "Silinme koruması: ${if (adm) "✅ açık" else "❌ kapalı"}"
         a11yBtn.visibility = if (a11y) View.GONE else View.VISIBLE
         adminBtn.visibility = if (adm) View.GONE else View.VISIBLE
+
+        val n = Store.apiKeys(this).size
+        geminiStatus.text = "Kayıtlı anahtar: $n · Model: ${Store.models(this).size}\n${GeminiChecker.lastStatus}"
 
         listOf(keyIn, modelIn, wordsIn, saveBtn).forEach { it.isEnabled = unlocked }
         saveBtn.alpha = if (unlocked) 1f else 0.4f

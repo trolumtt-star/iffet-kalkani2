@@ -50,14 +50,26 @@ object Store {
     fun bannedUntil(c: Context, pkg: String) = p(c).getLong("ban_$pkg", 0L)
 
     // --- Ayarlar ---
-    fun apiKey(c: Context) = p(c).getString("api_key", "") ?: ""
-    fun model(c: Context) = p(c).getString("model", "gemini-2.5-flash") ?: "gemini-2.5-flash"
+    /** Ücretsiz katmanda her modelin kotası ayrıdır; biri dolunca sıradaki denenir. */
+    val DEFAULT_MODELS = listOf(
+        "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"
+    )
+
+    private fun splitList(s: String) =
+        s.split(',', '\n', ' ', ';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    fun apiKeyText(c: Context) = p(c).getString("api_key", "") ?: ""
+    fun apiKeys(c: Context) = splitList(apiKeyText(c))
+
+    fun modelText(c: Context) = p(c).getString("model_list", null) ?: DEFAULT_MODELS.joinToString("\n")
+    fun models(c: Context) = splitList(modelText(c)).ifEmpty { DEFAULT_MODELS }
+
     fun extraWords(c: Context) = p(c).getString("extra_words", "") ?: ""
 
-    fun saveSettings(c: Context, key: String, model: String, words: String) {
+    fun saveSettings(c: Context, keys: String, models: String, words: String) {
         p(c).edit()
-            .putString("api_key", key.trim())
-            .putString("model", model.trim().ifEmpty { "gemini-2.5-flash" })
+            .putString("api_key", splitList(keys).joinToString("\n"))
+            .putString("model_list", splitList(models).ifEmpty { DEFAULT_MODELS }.joinToString("\n"))
             .putString("extra_words", words)
             .apply()
     }
