@@ -15,8 +15,22 @@ android {
         versionName = "1.1"
     }
 
+    // Sabit imza: her derleme aynı anahtarla imzalanır, güncellemeler eskisinin üstüne kurulur.
+    signingConfigs {
+        create("kalkan") {
+            storeFile = file("kalkan.keystore")
+            storePassword = "kalkan123"
+            keyAlias = "kalkan"
+            keyPassword = "kalkan123"
+        }
+    }
+
     buildTypes {
-        release { isMinifyEnabled = false }
+        debug { signingConfig = signingConfigs.getByName("kalkan") }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("kalkan")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
