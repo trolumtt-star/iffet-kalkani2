@@ -10,7 +10,7 @@ object Detector {
     private val partWords = listOf(
         "porn", "xvideos", "xnxx", "xhamster", "redtube", "youporn", "spankbang",
         "onlyfans", "brazzers", "chaturbate", "stripchat", "bongacams", "livejasmin",
-        "hentai", "rule34", "nhentai", "sikis", "ifsa", "+18", "18+", "nsfw",
+        "hentai", "rule34", "nhentai", "sikis", "ifsa", "nsfw",
         "erotik", "erotic", "milf", "bdsm", "camgirl", "xxx", "turbanli ifsa"
     )
 
@@ -40,6 +40,12 @@ object Detector {
 
     /** Harf yerine kullanılan sansür işaretleri. */
     private val maskChars = setOf('*', '#', '?', '%', '•', '●', '★')
+
+    /**
+     * "+18" / "18+" sadece tek başınayken sayılır. Telefon numaraları (+18005551234, ABD numaraları)
+     * ve "18+5" gibi hesaplar engellenmez.
+     */
+    private val plus18 = Regex("(^|[^0-9+])(\\+18|18\\+)([^0-9]|$)")
 
     fun normalize(s: String): String = s.lowercase(tr)
         .replace('ı', 'i').replace('ş', 's').replace('ç', 'c')
@@ -98,6 +104,7 @@ object Detector {
         val n = normalize(raw)
         if (partWords.any { n.contains(it) }) return true
         if (wholeWords.containsMatchIn(n)) return true
+        if (plus18.containsMatchIn(n)) return true
         val tokens = squeeze(n)
         if (tokens.any { tok -> fuzzyWords.any { fuzzyContains(tok, it) } }) return true
         val extra = Store.extraWords(c).split(',').map { normalize(it.trim()) }.filter { it.length >= 2 }
@@ -142,7 +149,8 @@ object Detector {
         "github.com", "stackoverflow.com", "trendyol.com", "hepsiburada.com", "sahibinden.com",
         "eksisozluk.com", "diyanet.gov.tr", "turkiye.gov.tr", "kuran.diyanet.gov.tr",
         "netflix.com", "crunchyroll.com", "myanimelist.net", "spotify.com", "bing.com",
-        "duckduckgo.com", "yandex.com", "yandex.com.tr", "amazon.com.tr", "linkedin.com"
+        "duckduckgo.com", "yandex.com", "yandex.com.tr", "amazon.com.tr", "linkedin.com",
+        "vapi.ai", "supabase.com", "vercel.com", "aistudio.google.com"
     )
 
     /** Adres çubuğundaki yazıdan alan adını çıkarır. Arama sorgusuysa null döner. */
@@ -160,4 +168,6 @@ object Detector {
     private fun inSet(d: String, set: Set<String>) = set.any { d == it || d.endsWith(".$it") }
     fun isBlockedDomain(d: String) = inSet(d, blockedDomains) || d.endsWith(".xxx") || d.endsWith(".porn") || d.endsWith(".sex") || d.endsWith(".adult")
     fun isSafeDomain(d: String) = inSet(d, safeDomains)
+    fun isSearchEngine(d: String) =
+        inSet(d, setOf("google.com", "google.com.tr", "bing.com", "yandex.com", "yandex.com.tr", "duckduckgo.com"))
 }

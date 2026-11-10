@@ -28,6 +28,13 @@ class MainActivity : Activity() {
     private lateinit var modelIn: EditText
     private lateinit var wordsIn: EditText
     private lateinit var geminiStatus: TextView
+    private lateinit var allowIn: EditText
+
+    private fun save() {
+        Store.saveSettings(this, keyIn.text.toString(), modelIn.text.toString(),
+            wordsIn.text.toString(), allowIn.text.toString())
+        allowIn.setText(Store.allowText(this))
+    }
     private lateinit var saveBtn: Button
     private lateinit var lockText: TextView
     private lateinit var finishBtn: Button
@@ -89,8 +96,18 @@ class MainActivity : Activity() {
             setText(Store.extraWords(this@MainActivity))
         }; col.addView(wordsIn)
 
+        col.addView(text("\nİzin verilen siteler (her satıra bir tane)", 18f, true))
+        col.addView(text("Yanlışlıkla engellenen siteleri buraya yaz (ör. vapi.ai). Bu siteler hiçbir site kontrolüne takılmaz. Klavye koruması yine çalışır.", 14f, color = 0xFF555555.toInt()))
+        allowIn = EditText(this).apply {
+            hint = "ör: vapi.ai"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            minLines = 2
+            setText(Store.allowText(this@MainActivity))
+        }; col.addView(allowIn)
+
         saveBtn = button("Ayarları kaydet") {
-            Store.saveSettings(this, keyIn.text.toString(), modelIn.text.toString(), wordsIn.text.toString())
+            save()
             Toast.makeText(this, "Kaydedildi", Toast.LENGTH_SHORT).show()
         }; col.addView(saveBtn)
 
@@ -98,7 +115,7 @@ class MainActivity : Activity() {
         col.addView(lockText)
 
         finishBtn = button("✅ Kurulumu bitir ve KİLİTLE", 0xFFB23A3A.toInt()) {
-            Store.saveSettings(this, keyIn.text.toString(), modelIn.text.toString(), wordsIn.text.toString())
+            save()
             Store.finishSetup(this)
             Toast.makeText(this, "Kilitlendi. Bismillah, yolun açık olsun.", Toast.LENGTH_LONG).show()
         }; col.addView(finishBtn)
@@ -138,7 +155,7 @@ class MainActivity : Activity() {
         val n = Store.apiKeys(this).size
         geminiStatus.text = "Kayıtlı anahtar: $n · Model: ${Store.models(this).size}\n${GeminiChecker.lastStatus}"
 
-        listOf(keyIn, modelIn, wordsIn, saveBtn).forEach { it.isEnabled = unlocked }
+        listOf(keyIn, modelIn, wordsIn, allowIn, saveBtn).forEach { it.isEnabled = unlocked }
         saveBtn.alpha = if (unlocked) 1f else 0.4f
 
         if (!setup) {

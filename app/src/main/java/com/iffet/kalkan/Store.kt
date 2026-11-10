@@ -66,11 +66,22 @@ object Store {
 
     fun extraWords(c: Context) = p(c).getString("extra_words", "") ?: ""
 
-    fun saveSettings(c: Context, keys: String, models: String, words: String) {
+    // --- Kullanıcının izin verdiği siteler (hiçbir site kontrolüne takılmaz) ---
+    fun allowText(c: Context) = p(c).getString("allow_list", "") ?: ""
+    fun allowList(c: Context) = splitList(allowText(c)).mapNotNull { Detector.domainOf(it) }
+    fun isAllowed(c: Context, d: String) = allowList(c).any { d == it || d.endsWith(".$it") }
+
+    fun saveSettings(c: Context, keys: String, models: String, words: String, allow: String) {
+        val allowed = splitList(allow).mapNotNull { Detector.domainOf(it) }.distinct()
+        // İzin verilen siteler daha önce yanlışlıkla "+18" diye hafızaya alındıysa sil
+        val adult = HashSet(p(c).getStringSet("adult", emptySet())!!)
+        adult.removeAll { d -> allowed.any { d == it || d.endsWith(".$it") } }
         p(c).edit()
             .putString("api_key", splitList(keys).joinToString("\n"))
             .putString("model_list", splitList(models).ifEmpty { DEFAULT_MODELS }.joinToString("\n"))
             .putString("extra_words", words)
+            .putString("allow_list", allowed.joinToString("\n"))
+            .putStringSet("adult", adult)
             .apply()
     }
 

@@ -111,6 +111,7 @@ class KalkanService : AccessibilityService() {
                 lastTitle = ""
                 val domain = Detector.domainOf(text)
                 lastDomain = domain
+                if (domain != null && Store.isAllowed(this, domain)) return // kullanıcının izin verdiği site
 
                 if (Detector.hasBadWord(this, text) || (domain != null && Detector.domainLooksAdult(domain))) {
                     domain?.let { Store.cacheDomain(this, it, true) }
@@ -118,11 +119,12 @@ class KalkanService : AccessibilityService() {
                     return
                 }
                 if (domain != null) when {
+                    Detector.isSafeDomain(domain) -> Unit // güvenli liste, eski hatalı hafızadan önce gelir
                     Detector.isBlockedDomain(domain) || Store.isCachedAdult(this, domain) -> {
                         punish(pkg, Store.SITE_BAN_MS, "+18 bir site açmaya çalıştın.")
                         return
                     }
-                    Detector.isSafeDomain(domain) || Store.isCachedSafe(this, domain) -> Unit
+                    Store.isCachedSafe(this, domain) -> Unit
                     else -> GeminiChecker.check(this, domain) {
                         punish(pkg, Store.SITE_BAN_MS, "Bu site (+18) olarak tespit edildi: $domain")
                     }
@@ -132,6 +134,11 @@ class KalkanService : AccessibilityService() {
 
         // --- B) Sayfanın adı ve üstte yazan başlıklar. Gemini çalışmasa bile bu her zaman çalışır. ---
         // Ör: doeda.com açıldı, başlıkta "TÜRKİYENİN EN BÜYÜK P*RNO SİTESİ" yazıyor -> at, 5 dk kilitle.
+        lastDomain?.let {
+            if (Store.isAllowed(this, it)) return
+            // Güvenli sitelerde sayfa yazısı taranmaz; arama motorlarında taranır (+18 arama sonuçları için)
+            if (Detector.isSafeDomain(it) && !Detector.isSearchEngine(it)) return
+        }
         val texts = pageTexts(root)
         if (texts.isEmpty()) return
         val joined = texts.joinToString("\n")
