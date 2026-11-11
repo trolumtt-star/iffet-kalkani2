@@ -50,6 +50,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
+        Store.migrate(this)
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(40), dp(20), dp(40))

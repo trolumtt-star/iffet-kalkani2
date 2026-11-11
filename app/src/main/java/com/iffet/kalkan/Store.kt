@@ -12,6 +12,15 @@ object Store {
     private fun p(c: Context) = c.getSharedPreferences("kalkan", Context.MODE_PRIVATE)
     private fun now() = System.currentTimeMillis()
 
+    /**
+     * Güncellemede bir kere çalışır. v1.8 öncesi hatalı kelime listesi ("sıkış", "yetişkin" vb.) yüzünden
+     * yanlışlıkla "+18" diye hafızaya alınan siteleri temizler.
+     */
+    fun migrate(c: Context) {
+        if (p(c).getInt("data_ver", 1) >= 2) return
+        p(c).edit().remove("adult").remove("safe").putInt("data_ver", 2).apply()
+    }
+
     // --- Kurulum ---
     fun setupDone(c: Context) = p(c).getBoolean("setup_done", false)
     fun finishSetup(c: Context) =

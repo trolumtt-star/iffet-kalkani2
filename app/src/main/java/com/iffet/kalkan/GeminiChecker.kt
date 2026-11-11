@@ -76,8 +76,9 @@ object GeminiChecker {
     private fun ask(key: String, model: String, domain: String): Result {
         return try {
             val prompt = "Sadece tek kelimeyle EVET ya da HAYIR yaz. " +
-                "Şu alan adı pornografik, çıplaklık veya +18 cinsel içerik sunan bir site mi? " +
-                "Anime, oyun, sosyal medya, haber veya yapay zeka siteleri HAYIR'dır. Alan adı: $domain"
+                "Şu alan adı ASIL amacı porno, çıplaklık veya cinsel içerik sunmak olan bir site mi? " +
+                "Emin değilsen ya da siteyi tanımıyorsan HAYIR yaz. Anime, oyun, film, sosyal medya, haber, " +
+                "alışveriş, yazılım, yapay zeka, telefon/çağrı servisleri ve iş siteleri HAYIR'dır. Alan adı: $domain"
 
             val body = JSONObject()
                 .put("contents", JSONArray().put(
@@ -102,7 +103,8 @@ object GeminiChecker {
                     val text = res.optJSONArray("candidates")?.optJSONObject(0)
                         ?.optJSONObject("content")?.optJSONArray("parts")
                         ?.optJSONObject(0)?.optString("text", "") ?: ""
-                    Result.Answer(text.uppercase().contains("EVET"))
+                    // Sadece cevap EVET ile başlıyorsa +18 say ("HAYIR, evet değil" gibi cevaplar yanlış engellemesin)
+                    Result.Answer(text.trim().uppercase(java.util.Locale("tr", "TR")).startsWith("EVET"))
                 }
                 429, 500, 503 -> Result.Quota          // kota doldu veya model yoğun
                 404 -> Result.Missing                  // model adı yanlış / kaldırılmış

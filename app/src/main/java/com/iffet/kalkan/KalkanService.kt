@@ -36,6 +36,14 @@ class KalkanService : AccessibilityService() {
         "com.mi.globalbrowser" to listOf("com.mi.globalbrowser:id/url")
     )
 
+    /** Telegram ve Telegram'ın bilinen kopyaları. */
+    private val telegramPkgs = setOf(
+        "org.telegram.messenger", "org.telegram.messenger.web", "org.telegram.messenger.beta",
+        "org.thunderdog.challegram", "org.telegram.plus", "tw.nekomimi.nekogram", "xyz.nextalone.nagram",
+        "com.exteragram.messenger", "org.forkgram.messenger", "it.octogram.android", "uz.unnarsx.cherrygram",
+        "nekox.messenger", "org.telegram.bgram", "app.nicegram", "com.iMe.android"
+    )
+
     private val main = Handler(Looper.getMainLooper())
     private var lastSettingsScan = 0L
     private var lastBrowserScan = 0L
@@ -49,7 +57,28 @@ class KalkanService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        Store.migrate(this)
         toast("İffet Kalkanı aktif. Allah yardımcın olsun 🤲")
+    }
+
+    private fun blockIncognito(pkg: String) {
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        kick(pkg, 0L, "Gizli sekme engelli. Saklanacak bir şeyin olmasın kardeşim.")
+    }
+
+    /** Ekranda (sayfa içi dahil) gizli modda olunduğunu gösteren yazı var mı? */
+    private fun inIncognito(root: AccessibilityNodeInfo): Boolean {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var seen = 0
+        while (queue.isNotEmpty() && seen < 400) {
+            val n = queue.removeFirst(); seen++
+            for (t in listOf(n.text, n.contentDescription)) {
+                if (t != null && Detector.isIncognitoScreen(Detector.normalize(t.toString()))) return true
+            }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        return false
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) {
@@ -63,6 +92,21 @@ class KalkanService : AccessibilityService() {
             val until = Store.bannedUntil(this, pkg)
             if (until > now) {
                 kick(pkg, until, "Bu uygulama şu an kilitli. Biraz sabret.")
+                return
+            }
+        }
+
+        // 1b) Telegram tamamen engelli
+        if (pkg in telegramPkgs) {
+            if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) kick(pkg, 0L, "Telegram engelli. O kapıyı kapattın, açma.")
+            return
+        }
+
+        // 1c) Gizli sekme açmaya basıldı (tarayıcı menüsünde ya da uygulama simgesine uzun basınca)
+        if (e.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            val clicked = Detector.normalize((e.text?.joinToString(" ") ?: "") + " " + (e.contentDescription ?: ""))
+            if (Detector.isIncognitoButton(clicked)) {
+                blockIncognito(pkg)
                 return
             }
         }
@@ -99,6 +143,8 @@ class KalkanService : AccessibilityService() {
 
     private fun checkBrowser(pkg: String) {
         val root = rootInActiveWindow ?: return
+        if (inIncognito(root)) { blockIncognito(pkg); return }
+
         val node = browsers[pkg]!!.firstNotNullOfOrNull { id ->
             root.findAccessibilityNodeInfosByViewId(id).firstOrNull()
         }
@@ -112,6 +158,10 @@ class KalkanService : AccessibilityService() {
                 val domain = Detector.domainOf(text)
                 lastDomain = domain
                 if (domain != null && Store.isAllowed(this, domain)) return // kullanıcının izin verdiği site
+                if (domain != null && Detector.isTelegramDomain(domain)) {
+                    kick(pkg, 0L, "Telegram engelli. O kapıyı kapattın, açma.")
+                    return
+                }
 
                 if (Detector.hasBadWord(this, text) || (domain != null && Detector.domainLooksAdult(domain))) {
                     domain?.let { Store.cacheDomain(this, it, true) }
@@ -169,11 +219,11 @@ class KalkanService : AccessibilityService() {
         val out = ArrayList<String>()
         (web.text ?: web.contentDescription)?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { out.add(it) }
 
-        // Sayfanın üstündeki ilk 40 yazı (logo yazısı, büyük başlık, menü...)
+        // Sayfanın üstündeki ilk 15 yazı (logo yazısı, büyük başlık, menü...)
         val stack = ArrayDeque<AccessibilityNodeInfo>()
         stack.add(web)
         seen = 0
-        while (stack.isNotEmpty() && seen < 250 && out.size < 40) {
+        while (stack.isNotEmpty() && seen < 200 && out.size < 15) {
             val n = stack.removeFirst(); seen++
             if (n !== web) {
                 (n.text ?: n.contentDescription)?.toString()?.trim()
