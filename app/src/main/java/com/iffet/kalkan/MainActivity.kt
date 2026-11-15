@@ -4,11 +4,13 @@ import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -16,26 +18,26 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.util.Calendar
 
 class MainActivity : Activity() {
     private val h = Handler(Looper.getMainLooper())
 
-    private lateinit var days: TextView
-    private lateinit var status: TextView
+    private lateinit var daysNum: TextView
+    private lateinit var daysSub: TextView
+    private lateinit var savesTv: TextView
+    private lateinit var a11yRow: View
+    private lateinit var adminRow: View
     private lateinit var a11yBtn: Button
     private lateinit var adminBtn: Button
     private lateinit var keyIn: EditText
     private lateinit var modelIn: EditText
     private lateinit var wordsIn: EditText
-    private lateinit var geminiStatus: TextView
     private lateinit var allowIn: EditText
-
-    private fun save() {
-        Store.saveSettings(this, keyIn.text.toString(), modelIn.text.toString(),
-            wordsIn.text.toString(), allowIn.text.toString())
-        allowIn.setText(Store.allowText(this))
-    }
+    private lateinit var geminiStatus: TextView
     private lateinit var saveBtn: Button
+    private lateinit var lockIcon: TextView
+    private lateinit var lockTitle: TextView
     private lateinit var lockText: TextView
     private lateinit var finishBtn: Button
     private lateinit var unlockBtn: Button
@@ -48,89 +50,141 @@ class MainActivity : Activity() {
         override fun run() { refresh(); h.postDelayed(this, 1000) }
     }
 
+    private val multiLine = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+
+    private fun save() {
+        Store.saveSettings(this, keyIn.text.toString(), modelIn.text.toString(),
+            wordsIn.text.toString(), allowIn.text.toString())
+        allowIn.setText(Store.allowText(this))
+    }
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         Store.migrate(this)
+        window.statusBarColor = C.BG_TOP
+        window.navigationBarColor = C.BG_BOTTOM
+
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(40), dp(20), dp(40))
+            setPadding(dp(18), dp(28), dp(18), dp(48))
         }
 
-        col.addView(text("🛡️ İffet Kalkanı", 28f, true))
-        days = text("", 18f, true, 0xFF1E6B4F.toInt()); col.addView(days)
-        status = text(""); col.addView(status)
+        // --- Üst kısım: başlık ve gün sayacı ---
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text("☪", 22f, color = C.GOLD).apply { setPadding(0, 0, dp(10), 0) })
+            addView(text("İffet Kalkanı", 22f, true))
+        })
 
-        a11yBtn = button("1) Erişilebilirlik iznini aç") {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }; col.addView(a11yBtn)
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(18), dp(26), dp(18), dp(24))
+            background = rounded(C.CARD, 26, 0x55E3C26B)
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) }
+            daysNum = text("0", 64f, true, C.GOLD).apply {
+                gravity = Gravity.CENTER
+                setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL))
+            }
+            daysSub = text("gün temiz", 16f, color = C.GOLD_SOFT).apply { gravity = Gravity.CENTER }
+            savesTv = text("", 14f, color = C.MUTED).apply { gravity = Gravity.CENTER; setPadding(0, dp(8), 0, 0) }
+            addView(daysNum); addView(daysSub); addView(savesTv)
+        })
 
-        adminBtn = button("2) Silinme korumasını aç") {
-            startActivity(Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-                .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-                .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "Bunu açınca İffet Kalkanı dürtü anında silinemez."))
-        }; col.addView(adminBtn)
+        // --- Günün ayeti (her gün değişir) ---
+        val day = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        val dv = Content.verses[day % Content.verses.size]
+        col.addView(card(soft = true).apply {
+            addView(label("Günün ayeti · ${dv.theme}"))
+            dv.arabic?.let {
+                addView(text(it, 21f, color = C.GOLD).apply {
+                    gravity = Gravity.CENTER
+                    textDirection = View.TEXT_DIRECTION_RTL
+                    setLineSpacing(dp(6).toFloat(), 1.1f)
+                    setPadding(0, dp(2), 0, dp(10))
+                })
+            }
+            addView(text("“${dv.meal}”", 16f).apply { setTypeface(Typeface.SERIF, Typeface.ITALIC) })
+            addView(text(dv.source, 13f, true, C.GOLD).apply { gravity = Gravity.END })
+        })
 
-        col.addView(text("\n3) Gemini API anahtarları", 18f, true))
-        col.addView(text("aistudio.google.com adresinden ücretsiz alınır. Her satıra bir anahtar yaz. Birinin kotası dolunca otomatik sıradakine geçer. Bilinmeyen siteler Gemini'ye sorulur (sadece site adı gider).", 14f, color = 0xFF555555.toInt()))
-        keyIn = EditText(this).apply {
-            hint = "Her satıra bir API anahtarı"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            minLines = 2
-            setText(Store.apiKeyText(this@MainActivity))
-        }; col.addView(keyIn)
+        // --- Kilit durumu ---
+        col.addView(card().apply {
+            addView(label("Kilit"))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                lockIcon = text("🔒", 28f).apply { setPadding(0, 0, dp(12), 0) }
+                lockTitle = text("", 18f, true)
+                addView(lockIcon); addView(lockTitle)
+            })
+            lockText = text("", 14f, color = C.MUTED); addView(lockText)
+            finishBtn = button("Kurulumu bitir ve kilitle", C.GOLD, C.BG_BOTTOM) {
+                save()
+                Store.finishSetup(this@MainActivity)
+                Toast.makeText(this@MainActivity, "Kilitlendi. Bismillah, yolun açık olsun.", Toast.LENGTH_LONG).show()
+            }.apply { setTypeface(typeface, Typeface.BOLD) }
+            unlockBtn = button("Değişiklik yapmak istiyorum (10 dk bekle)", C.GREY) {
+                Store.requestUnlock(this@MainActivity)
+            }
+            relockBtn = button("Vazgeçtim, hemen kilitle", C.GREEN) { Store.relock(this@MainActivity) }
+            addView(finishBtn); addView(unlockBtn); addView(relockBtn)
+        })
 
-        col.addView(text("Modeller (her satıra bir tane, yukarıdan aşağı denenir)", 15f, true))
-        modelIn = EditText(this).apply {
-            hint = Store.DEFAULT_MODELS.joinToString("\n")
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            minLines = 3
-            setText(Store.modelText(this@MainActivity))
-        }; col.addView(modelIn)
-        geminiStatus = text("", 14f, color = 0xFF555555.toInt()); col.addView(geminiStatus)
+        // --- Koruma izinleri ---
+        col.addView(card().apply {
+            addView(label("Koruma"))
+            a11yRow = statusRow("Erişilebilirlik izni"); addView(a11yRow)
+            adminRow = statusRow("Silinme koruması"); addView(adminRow)
+            a11yBtn = button("Erişilebilirlik iznini aç") {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            adminBtn = button("Silinme korumasını aç") {
+                startActivity(Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                    .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                    .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                        "Bunu açınca İffet Kalkanı dürtü anında silinemez."))
+            }
+            addView(a11yBtn); addView(adminBtn)
+            addView(text("Telegram ve gizli sekme her zaman engelli.", 13f, color = C.MUTED).apply {
+                setPadding(0, dp(10), 0, 0)
+            })
+        })
 
-        col.addView(text("\nEkstra yasaklı kelimeler (virgülle ayır)", 18f, true))
-        wordsIn = EditText(this).apply {
-            hint = "ör: kelime1, kelime2"
-            setText(Store.extraWords(this@MainActivity))
-        }; col.addView(wordsIn)
+        // --- Gemini ---
+        col.addView(card().apply {
+            addView(label("Gemini site kontrolü"))
+            addView(text("aistudio.google.com'dan ücretsiz anahtar al. Her satıra bir anahtar yaz; biri dolunca sıradakine geçer. Sadece site adı gönderilir.", 13f, color = C.MUTED))
+            keyIn = input("Her satıra bir API anahtarı", Store.apiKeyText(this@MainActivity), 2, multiLine)
+            addView(keyIn)
+            addView(text("Modeller (yukarıdan aşağı denenir)", 13f, true, C.GOLD_SOFT).apply { setPadding(0, dp(12), 0, 0) })
+            modelIn = input(Store.DEFAULT_MODELS.joinToString("\n"), Store.modelText(this@MainActivity), 3, multiLine)
+            addView(modelIn)
+            geminiStatus = text("", 13f, color = C.MUTED).apply { setPadding(0, dp(8), 0, 0) }
+            addView(geminiStatus)
+        })
 
-        col.addView(text("\nİzin verilen siteler (her satıra bir tane)", 18f, true))
-        col.addView(text("Yanlışlıkla engellenen siteleri buraya yaz (ör. vapi.ai). Bu siteler hiçbir site kontrolüne takılmaz. Klavye koruması yine çalışır.", 14f, color = 0xFF555555.toInt()))
-        allowIn = EditText(this).apply {
-            hint = "ör: vapi.ai"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            minLines = 2
-            setText(Store.allowText(this@MainActivity))
-        }; col.addView(allowIn)
-
-        saveBtn = button("Ayarları kaydet") {
-            save()
-            Toast.makeText(this, "Kaydedildi", Toast.LENGTH_SHORT).show()
-        }; col.addView(saveBtn)
-
-        lockText = text("", 17f, true).apply { setPadding(0, dp(24), 0, 0) }
-        col.addView(lockText)
-
-        finishBtn = button("✅ Kurulumu bitir ve KİLİTLE", 0xFFB23A3A.toInt()) {
-            save()
-            Store.finishSetup(this)
-            Toast.makeText(this, "Kilitlendi. Bismillah, yolun açık olsun.", Toast.LENGTH_LONG).show()
-        }; col.addView(finishBtn)
-
-        unlockBtn = button("Değişiklik yapmak istiyorum (10 dk bekle)", 0xFF6B6B6B.toInt()) {
-            Store.requestUnlock(this)
-        }; col.addView(unlockBtn)
-
-        relockBtn = button("Vazgeçtim, hemen kilitle", 0xFF1E6B4F.toInt()) {
-            Store.relock(this)
-        }; col.addView(relockBtn)
+        // --- Kelimeler ve izinli siteler ---
+        col.addView(card().apply {
+            addView(label("Ekstra yasaklı kelimeler"))
+            wordsIn = input("ör: kelime1, kelime2", Store.extraWords(this@MainActivity), 1,
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+            addView(wordsIn)
+            addView(label("İzin verilen siteler").apply { setPadding(0, dp(18), 0, dp(6)) })
+            addView(text("Yanlışlıkla engellenen siteleri yaz (ör. vapi.ai). Klavye koruması orada da çalışır.", 13f, color = C.MUTED))
+            allowIn = input("ör: vapi.ai", Store.allowText(this@MainActivity), 2, multiLine)
+            addView(allowIn)
+            saveBtn = button("Ayarları kaydet") {
+                save()
+                Toast.makeText(this@MainActivity, "Kaydedildi", Toast.LENGTH_SHORT).show()
+            }
+            addView(saveBtn)
+        })
 
         setContentView(ScrollView(this).apply {
-            setBackgroundColor(0xFFF4F7F5.toInt())
+            background = gradientBg()
             addView(col)
         })
     }
@@ -148,37 +202,56 @@ class MainActivity : Activity() {
         val setup = Store.setupDone(this)
         val unlocked = Store.isUnlocked(this)
 
-        status.text = "Erişilebilirlik: ${if (a11y) "✅ açık" else "❌ kapalı"}\n" +
-            "Silinme koruması: ${if (adm) "✅ açık" else "❌ kapalı"}"
+        a11yRow.setChip(a11y)
+        adminRow.setChip(adm)
         a11yBtn.visibility = if (a11y) View.GONE else View.VISIBLE
         adminBtn.visibility = if (adm) View.GONE else View.VISIBLE
 
-        val n = Store.apiKeys(this).size
-        geminiStatus.text = "Kayıtlı anahtar: $n · Model: ${Store.models(this).size}\n${GeminiChecker.lastStatus}"
+        val saves = Store.saves(this)
+        savesTv.text = if (saves == 0) "Kalkan hazır. Allah yardımcın olsun."
+            else "Kalkan seni $saves kez korudu"
 
-        listOf(keyIn, modelIn, wordsIn, allowIn, saveBtn).forEach { it.isEnabled = unlocked }
-        saveBtn.alpha = if (unlocked) 1f else 0.4f
+        geminiStatus.text = "Anahtar: ${Store.apiKeys(this).size} · Model: ${Store.models(this).size}\n${GeminiChecker.lastStatus}"
+
+        listOf(keyIn, modelIn, wordsIn, allowIn, saveBtn).forEach {
+            it.isEnabled = unlocked
+            it.alpha = if (unlocked) 1f else 0.45f
+        }
 
         if (!setup) {
-            days.text = ""
+            daysNum.text = "—"
+            daysSub.text = "kurulum bekleniyor"
+            lockIcon.text = "🛠️"
+            lockTitle.text = "Kurulum"
+            lockText.text = "İki izni aç, ayarları yap ve kilitle. Kilitledikten sonra her değişiklik için 10 dk beklemen gerekecek."
             finishBtn.visibility = View.VISIBLE
             finishBtn.isEnabled = a11y && adm
-            finishBtn.alpha = if (a11y && adm) 1f else 0.4f
-            lockText.text = "Önce 1 ve 2'yi aç, ayarları yap, sonra kilitle.\nKilitledikten sonra her değişiklik için 10 dk beklemen gerekecek."
+            finishBtn.alpha = if (a11y && adm) 1f else 0.45f
             unlockBtn.visibility = View.GONE
             relockBtn.visibility = View.GONE
             return
         }
 
         val d = (System.currentTimeMillis() - Store.cleanSince(this)) / 86_400_000L
-        days.text = "Kalkanla geçen gün: $d"
+        daysNum.text = d.toString()
+        daysSub.text = "gün kalkanla"
         finishBtn.visibility = View.GONE
+
         val pending = Store.pendingMsLeft(this)
         val open = Store.openMsLeft(this)
-        lockText.text = when {
-            pending > 0 -> "⏳ Bekleme: ${fmt(pending)} kaldı.\nBitince 10 dk boyunca ayarları değiştirebilirsin. Bu sürede dürtü geçerse vazgeç."
-            open > 0 -> "🔓 Kilit açık: ${fmt(open)} sonra otomatik kilitlenir."
-            else -> "🔒 Kilitli. Ayarlar, erişilebilirlik ve silme ekranları kapalı."
+        when {
+            pending > 0 -> {
+                lockIcon.text = "⏳"; lockTitle.text = "Bekleme: ${fmt(pending)}"
+                lockText.text = "Bitince 10 dk boyunca ayarları değiştirebilirsin. Bu sürede dürtü geçerse vazgeç."
+            }
+            open > 0 -> {
+                lockIcon.text = "🔓"; lockTitle.text = "Açık: ${fmt(open)}"
+                lockText.text = "Süre bitince kendiliğinden kilitlenir."
+            }
+            else -> {
+                lockIcon.text = "🔒"; lockTitle.text = "Kilitli"
+                lockText.text = "Ayarlar, erişilebilirlik ve silme ekranları kapalı."
+            }
         }
         val busy = pending > 0 || open > 0
         unlockBtn.visibility = if (busy) View.GONE else View.VISIBLE

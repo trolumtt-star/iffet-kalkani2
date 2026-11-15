@@ -44,6 +44,14 @@ class KalkanService : AccessibilityService() {
         "nekox.messenger", "org.telegram.bgram", "app.nicegram", "com.iMe.android"
     )
 
+    /** Arama ekranları: telefon çalarken ayet ekranı geçici gizlenir. */
+    private val callPkgs = setOf(
+        "com.android.incallui", "com.google.android.dialer", "com.samsung.android.incallui",
+        "com.android.dialer", "com.android.server.telecom", "com.huawei.contacts", "com.miui.voip"
+    )
+
+    private val shield by lazy { ShieldOverlay(this) }
+
     private val main = Handler(Looper.getMainLooper())
     private var lastSettingsScan = 0L
     private var lastBrowserScan = 0L
@@ -86,6 +94,10 @@ class KalkanService : AccessibilityService() {
         val pkg = e.packageName?.toString() ?: return
         if (pkg == packageName || pkg == "com.android.systemui") return
         val now = System.currentTimeMillis()
+
+        if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && shield.isShowing) {
+            shield.setHiddenForCall(pkg in callPkgs)
+        }
 
         // 1) Yasaklı uygulamaya girmeye çalışıyor
         if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -247,13 +259,17 @@ class KalkanService : AccessibilityService() {
         if (canBan(pkg)) Store.ban(this, pkg, until)
         lastUrl = "" // yasak bitip geri dönünce aynı sekme tekrar kontrol edilsin
         lastTitle = ""
-        kick(pkg, until, reason)
+        if (pkg in browsers) performGlobalAction(GLOBAL_ACTION_BACK)
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        // Ekranı 2 dakika ayetler kaplar
+        main.postDelayed({ shield.show(reason) }, 250)
     }
 
     private fun kick(pkg: String, until: Long, reason: String) {
         if (pkg in browsers) performGlobalAction(GLOBAL_ACTION_BACK)
         performGlobalAction(GLOBAL_ACTION_HOME)
 
+        if (shield.isShowing) return // ayet ekranı zaten her şeyi kaplıyor
         val now = System.currentTimeMillis()
         if (now - lastKick < 1500) return // uyarı ekranı zaten açılıyor
         lastKick = now
@@ -273,4 +289,9 @@ class KalkanService : AccessibilityService() {
     private fun toast(msg: String) = main.post { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
 
     override fun onInterrupt() {}
+
+    override fun onDestroy() {
+        shield.hide()
+        super.onDestroy()
+    }
 }

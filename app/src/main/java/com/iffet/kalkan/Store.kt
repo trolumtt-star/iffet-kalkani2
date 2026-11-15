@@ -21,6 +21,14 @@ object Store {
         p(c).edit().remove("adult").remove("safe").putInt("data_ver", 2).apply()
     }
 
+    // --- Kaç kez korundu ---
+    fun saves(c: Context) = p(c).getInt("saves", 0)
+    fun addSave(c: Context): Int {
+        val n = saves(c) + 1
+        p(c).edit().putInt("saves", n).apply()
+        return n
+    }
+
     // --- Kurulum ---
     fun setupDone(c: Context) = p(c).getBoolean("setup_done", false)
     fun finishSetup(c: Context) =
