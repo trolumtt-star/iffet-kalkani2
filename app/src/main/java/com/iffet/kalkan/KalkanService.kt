@@ -37,6 +37,13 @@ class KalkanService : AccessibilityService() {
     )
 
     /** Telegram ve Telegram'ın bilinen kopyaları. */
+    /** X (Twitter) ve bilinen istemcileri. */
+    private val xPkgs = setOf(
+        "com.twitter.android", "com.twitter.android.lite", "com.twitter.android.beta",
+        "org.joinmastodon.android.twitter", "com.dimension.maskbook", "dev.dimension.flare",
+        "com.jonjomckay.fritter", "com.zacharee1.nitter"
+    )
+
     private val telegramPkgs = setOf(
         "org.telegram.messenger", "org.telegram.messenger.web", "org.telegram.messenger.beta",
         "org.thunderdog.challegram", "org.telegram.plus", "tw.nekomimi.nekogram", "xyz.nextalone.nagram",
@@ -108,9 +115,10 @@ class KalkanService : AccessibilityService() {
             }
         }
 
-        // 1b) Telegram tamamen engelli
-        if (pkg in telegramPkgs) {
-            if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) kick(pkg, 0L, "Telegram engelli. O kapıyı kapattın, açma.")
+        // 1b) Telegram ve X tamamen engelli
+        if (pkg in telegramPkgs || pkg in xPkgs) {
+            val name = if (pkg in xPkgs) "X (Twitter)" else "Telegram"
+            if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) kick(pkg, 0L, "$name engelli. O kapıyı kapattın, açma.")
             return
         }
 
@@ -172,6 +180,10 @@ class KalkanService : AccessibilityService() {
                 if (domain != null && Store.isAllowed(this, domain)) return // kullanıcının izin verdiği site
                 if (domain != null && Detector.isTelegramDomain(domain)) {
                     kick(pkg, 0L, "Telegram engelli. O kapıyı kapattın, açma.")
+                    return
+                }
+                if (domain != null && Detector.isXDomain(domain)) {
+                    kick(pkg, 0L, "X (Twitter) engelli. O kapıyı kapattın, açma.")
                     return
                 }
 

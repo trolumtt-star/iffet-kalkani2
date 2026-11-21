@@ -34,6 +34,17 @@ object Store {
     fun finishSetup(c: Context) =
         p(c).edit().putBoolean("setup_done", true).putLong("clean_since", now()).apply()
     fun cleanSince(c: Context) = p(c).getLong("clean_since", now())
+    fun currentDays(c: Context) = (now() - cleanSince(c)) / 86_400_000L
+    fun bestDays(c: Context) = maxOf(p(c).getLong("best_days", 0L), currentDays(c))
+
+    /** Düşünce sayaç sıfırlanır; en uzun seri saklanır. Sıfırlamak dürüstlüktür, kilide bağlı değil. */
+    fun resetDays(c: Context) {
+        p(c).edit()
+            .putLong("best_days", bestDays(c))
+            .putLong("clean_since", now())
+            .putInt("resets", p(c).getInt("resets", 0) + 1)
+            .apply()
+    }
 
     // --- 10 dakikalık kilit ---
     private fun req(c: Context) = p(c).getLong("unlock_req", 0L)

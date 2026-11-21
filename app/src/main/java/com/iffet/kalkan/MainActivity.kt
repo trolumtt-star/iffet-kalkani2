@@ -1,6 +1,7 @@
 package com.iffet.kalkan
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
@@ -26,6 +27,8 @@ class MainActivity : Activity() {
     private lateinit var daysNum: TextView
     private lateinit var daysSub: TextView
     private lateinit var savesTv: TextView
+    private lateinit var bestTv: TextView
+    private lateinit var resetBtn: TextView
     private lateinit var a11yRow: View
     private lateinit var adminRow: View
     private lateinit var a11yBtn: Button
@@ -90,7 +93,15 @@ class MainActivity : Activity() {
             }
             daysSub = text("gün temiz", 16f, color = C.GOLD_SOFT).apply { gravity = Gravity.CENTER }
             savesTv = text("", 14f, color = C.MUTED).apply { gravity = Gravity.CENTER; setPadding(0, dp(8), 0, 0) }
-            addView(daysNum); addView(daysSub); addView(savesTv)
+            bestTv = text("", 13f, true, C.GOLD_SOFT).apply { gravity = Gravity.CENTER }
+            resetBtn = text("Düştüm, günü sıfırla", 14f, color = C.MUTED).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                background = rounded(0x14FFFFFF, 50, C.LINE)
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(14) }
+                setOnClickListener { askReset() }
+            }
+            addView(daysNum); addView(daysSub); addView(savesTv); addView(bestTv); addView(resetBtn)
         })
 
         // --- Günün ayeti (her gün değişir) ---
@@ -148,7 +159,7 @@ class MainActivity : Activity() {
                         "Bunu açınca İffet Kalkanı dürtü anında silinemez."))
             }
             addView(a11yBtn); addView(adminBtn)
-            addView(text("Telegram ve gizli sekme her zaman engelli.", 13f, color = C.MUTED).apply {
+            addView(text("Telegram, X (Twitter) ve gizli sekme her zaman engelli.", 13f, color = C.MUTED).apply {
                 setPadding(0, dp(10), 0, 0)
             })
         })
@@ -189,6 +200,23 @@ class MainActivity : Activity() {
         })
     }
 
+    private fun askReset() {
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Günü sıfırla")
+            .setMessage("Dürüst olman zaten kazanmanın başlangıcı. Sayaç sıfırlanacak, en uzun serin saklanacak.\n\nSıfırlansın mı?")
+            .setPositiveButton("Sıfırla, yeniden başlıyorum") { _, _ ->
+                Store.resetDays(this)
+                refresh()
+                AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                    .setTitle("Bismillah, yeni bir başlangıç")
+                    .setMessage("“Ey nefislerine karşı aşırı giden kullarım! Allah'ın rahmetinden ümidinizi kesmeyin. Allah bütün günahları bağışlar.”\n— Zümer Suresi, 53\n\n“Ancak tövbe eden, iman edip salih amel işleyenler başka. Allah onların kötülüklerini iyiliklere çevirir.”\n— Furkan Suresi, 70\n\nKalk, abdest al, tövbe et. Düşmek değil, düştüğün yerde kalmak kaybettirir.")
+                    .setPositiveButton("Amin, devam") { d, _ -> d.dismiss() }
+                    .show()
+            }
+            .setNegativeButton("Vazgeç", null)
+            .show()
+    }
+
     override fun onResume() { super.onResume(); h.post(tick) }
     override fun onPause() { h.removeCallbacks(tick); super.onPause() }
 
@@ -221,6 +249,8 @@ class MainActivity : Activity() {
         if (!setup) {
             daysNum.text = "—"
             daysSub.text = "kurulum bekleniyor"
+            bestTv.text = ""
+            resetBtn.visibility = View.GONE
             lockIcon.text = "🛠️"
             lockTitle.text = "Kurulum"
             lockText.text = "İki izni aç, ayarları yap ve kilitle. Kilitledikten sonra her değişiklik için 10 dk beklemen gerekecek."
@@ -232,9 +262,12 @@ class MainActivity : Activity() {
             return
         }
 
-        val d = (System.currentTimeMillis() - Store.cleanSince(this)) / 86_400_000L
+        val d = Store.currentDays(this)
         daysNum.text = d.toString()
-        daysSub.text = "gün kalkanla"
+        val best = Store.bestDays(this)
+        bestTv.text = if (best > 0) "En uzun serin: $best gün" else ""
+        daysSub.text = "gün temiz"
+        resetBtn.visibility = View.VISIBLE
         finishBtn.visibility = View.GONE
 
         val pending = Store.pendingMsLeft(this)

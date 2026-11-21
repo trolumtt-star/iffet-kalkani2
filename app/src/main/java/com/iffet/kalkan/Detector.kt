@@ -173,7 +173,7 @@ object Detector {
     private val safeDomains = setOf(
         "google.com", "google.com.tr", "youtube.com", "gemini.google.com", "chatgpt.com",
         "openai.com", "claude.ai", "anthropic.com", "wikipedia.org", "instagram.com",
-        "whatsapp.com", "web.whatsapp.com", "twitter.com", "x.com", "facebook.com", "tiktok.com",
+        "whatsapp.com", "web.whatsapp.com", "facebook.com", "tiktok.com",
         "github.com", "stackoverflow.com", "trendyol.com", "hepsiburada.com", "sahibinden.com",
         "eksisozluk.com", "diyanet.gov.tr", "turkiye.gov.tr", "kuran.diyanet.gov.tr",
         "netflix.com", "crunchyroll.com", "myanimelist.net", "spotify.com", "bing.com",
@@ -196,6 +196,12 @@ object Detector {
     private fun inSet(d: String, set: Set<String>) = set.any { d == it || d.endsWith(".$it") }
     fun isBlockedDomain(d: String) = inSet(d, blockedDomains) || d.endsWith(".xxx") || d.endsWith(".porn") || d.endsWith(".sex") || d.endsWith(".adult")
     fun isSafeDomain(d: String) = inSet(d, safeDomains)
+
+    /** X'te +18 video çok; uygulama ve site tamamen kapalı. */
+    fun isXDomain(d: String) = inSet(d, setOf(
+        "x.com", "twitter.com", "t.co", "twimg.com", "nitter.net", "xcancel.com", "twitfix.com",
+        "fxtwitter.com", "vxtwitter.com", "fixupx.com", "twstalker.com", "sotwe.com"
+    ))
 
     fun isTelegramDomain(d: String) =
         inSet(d, setOf("telegram.org", "t.me", "telegram.me", "telegram.dog", "telesco.pe", "tgstat.com", "tgstat.ru"))
