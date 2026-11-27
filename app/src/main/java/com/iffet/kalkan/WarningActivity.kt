@@ -21,7 +21,7 @@ class WarningActivity : Activity() {
 
     private val tick = object : Runnable {
         override fun run() {
-            val left = until - TrustedClock.now(this)
+            val left = until - TrustedClock.now(this@WarningActivity)
             countdown?.text = when {
                 until == 0L -> ""
                 left > 0 -> "$app ${fmt(left)} sonra açılacak"
