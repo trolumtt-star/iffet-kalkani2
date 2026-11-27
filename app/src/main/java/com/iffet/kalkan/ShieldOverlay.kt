@@ -48,12 +48,12 @@ class ShieldOverlay(private val svc: AccessibilityService) {
     fun show(reason: String) {
         val saves = Store.addSave(svc)
         if (root != null) { // zaten açıksa süreyi baştan başlat
-            endAt = System.currentTimeMillis() + DURATION_MS
+            endAt = TrustedClock.now(svc) + DURATION_MS
             reasonTv.text = reason
             countTv.text = savesText(saves)
             return
         }
-        endAt = System.currentTimeMillis() + DURATION_MS
+        endAt = TrustedClock.now(svc) + DURATION_MS
         verses = Content.shuffledSequence()
         idx = 0
 
@@ -98,7 +98,7 @@ class ShieldOverlay(private val svc: AccessibilityService) {
 
     private val tick = object : Runnable {
         override fun run() {
-            val left = endAt - System.currentTimeMillis()
+            val left = endAt - TrustedClock.now(svc)
             if (left <= 0) { hide(); return }
             timerTv.text = fmt(left)
             bar.progress = (1000 * (DURATION_MS - left) / DURATION_MS).toInt()

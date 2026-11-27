@@ -73,6 +73,7 @@ class KalkanService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Store.migrate(this)
+        TrustedClock.syncFromNetwork(this)
         toast("İffet Kalkanı aktif. Allah yardımcın olsun 🤲")
     }
 
@@ -100,7 +101,8 @@ class KalkanService : AccessibilityService() {
         e ?: return
         val pkg = e.packageName?.toString() ?: return
         if (pkg == packageName || pkg == "com.android.systemui") return
-        val now = System.currentTimeMillis()
+        val now = TrustedClock.now(this)
+        TrustedClock.syncFromNetwork(this) // 15 dakikada bir internetten saati düzeltir
 
         if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && shield.isShowing) {
             shield.setHiddenForCall(pkg in callPkgs)
@@ -267,7 +269,7 @@ class KalkanService : AccessibilityService() {
     private fun canBan(pkg: String) = pkg !in settingsPkgs && pkg !in homePkgs
 
     private fun punish(pkg: String, ms: Long, reason: String) {
-        val until = System.currentTimeMillis() + ms
+        val until = TrustedClock.now(this) + ms
         if (canBan(pkg)) Store.ban(this, pkg, until)
         lastUrl = "" // yasak bitip geri dönünce aynı sekme tekrar kontrol edilsin
         lastTitle = ""
@@ -282,7 +284,7 @@ class KalkanService : AccessibilityService() {
         performGlobalAction(GLOBAL_ACTION_HOME)
 
         if (shield.isShowing) return // ayet ekranı zaten her şeyi kaplıyor
-        val now = System.currentTimeMillis()
+        val now = TrustedClock.now(this)
         if (now - lastKick < 1500) return // uyarı ekranı zaten açılıyor
         lastKick = now
 

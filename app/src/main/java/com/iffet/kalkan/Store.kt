@@ -10,7 +10,6 @@ object Store {
     const val SITE_BAN_MS = 5 * 60_000L     // +18 site açınca tarayıcı yasağı
 
     private fun p(c: Context) = c.getSharedPreferences("kalkan", Context.MODE_PRIVATE)
-    private fun now() = System.currentTimeMillis()
 
     /**
      * Güncellemede bir kere çalışır. v1.8 öncesi hatalı kelime listesi ("sıkış", "yetişkin" vb.) yüzünden
@@ -32,16 +31,16 @@ object Store {
     // --- Kurulum ---
     fun setupDone(c: Context) = p(c).getBoolean("setup_done", false)
     fun finishSetup(c: Context) =
-        p(c).edit().putBoolean("setup_done", true).putLong("clean_since", now()).apply()
-    fun cleanSince(c: Context) = p(c).getLong("clean_since", now())
-    fun currentDays(c: Context) = (now() - cleanSince(c)) / 86_400_000L
+        p(c).edit().putBoolean("setup_done", true).putLong("clean_since", TrustedClock.now(c)).apply()
+    fun cleanSince(c: Context) = p(c).getLong("clean_since", TrustedClock.now(c))
+    fun currentDays(c: Context) = (TrustedClock.now(c) - cleanSince(c)) / 86_400_000L
     fun bestDays(c: Context) = maxOf(p(c).getLong("best_days", 0L), currentDays(c))
 
     /** Düşünce sayaç sıfırlanır; en uzun seri saklanır. Sıfırlamak dürüstlüktür, kilide bağlı değil. */
     fun resetDays(c: Context) {
         p(c).edit()
             .putLong("best_days", bestDays(c))
-            .putLong("clean_since", now())
+            .putLong("clean_since", TrustedClock.now(c))
             .putInt("resets", p(c).getInt("resets", 0) + 1)
             .apply()
     }
@@ -51,20 +50,20 @@ object Store {
 
     fun requestUnlock(c: Context) {
         if (pendingMsLeft(c) > 0 || openMsLeft(c) > 0) return
-        p(c).edit().putLong("unlock_req", now()).apply()
+        p(c).edit().putLong("unlock_req", TrustedClock.now(c)).apply()
     }
 
     fun relock(c: Context) = p(c).edit().remove("unlock_req").apply()
 
     fun pendingMsLeft(c: Context): Long {
         val r = req(c); if (r == 0L) return 0
-        val t = now() - r
+        val t = TrustedClock.now(c) - r
         return if (t in 0 until WAIT_MS) WAIT_MS - t else 0
     }
 
     fun openMsLeft(c: Context): Long {
         val r = req(c); if (r == 0L) return 0
-        val t = now() - r
+        val t = TrustedClock.now(c) - r
         return if (t in WAIT_MS until WAIT_MS + OPEN_MS) WAIT_MS + OPEN_MS - t else 0
     }
 

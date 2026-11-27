@@ -39,7 +39,7 @@ object GeminiChecker {
             try {
                 for (key in keys) for (model in models) {
                     val combo = "${key.takeLast(6)}|$model"
-                    if ((skipUntil[combo] ?: 0L) > System.currentTimeMillis()) continue
+                    if ((skipUntil[combo] ?: 0L) > android.os.SystemClock.elapsedRealtime()) continue
 
                     when (val r = ask(key, model, domain)) {
                         is Result.Answer -> {
@@ -48,11 +48,11 @@ object GeminiChecker {
                             if (r.adult) main.post(onAdult)
                             return@thread
                         }
-                        Result.Quota -> skipUntil[combo] = System.currentTimeMillis() + SKIP_QUOTA_MS
-                        Result.Missing -> skipUntil[combo] = System.currentTimeMillis() + SKIP_MISSING_MS
+                        Result.Quota -> skipUntil[combo] = android.os.SystemClock.elapsedRealtime() + SKIP_QUOTA_MS
+                        Result.Missing -> skipUntil[combo] = android.os.SystemClock.elapsedRealtime() + SKIP_MISSING_MS
                         Result.BadKey -> {
                             // Bu anahtar hiçbir modelde çalışmaz, hepsini atla
-                            models.forEach { skipUntil["${key.takeLast(6)}|$it"] = System.currentTimeMillis() + SKIP_MISSING_MS }
+                            models.forEach { skipUntil["${key.takeLast(6)}|$it"] = android.os.SystemClock.elapsedRealtime() + SKIP_MISSING_MS }
                             break
                         }
                         Result.NoNet -> { lastStatus = "📵 İnternet yok, sonra tekrar sorulacak."; return@thread }

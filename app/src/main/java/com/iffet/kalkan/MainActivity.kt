@@ -217,7 +217,7 @@ class MainActivity : Activity() {
             .show()
     }
 
-    override fun onResume() { super.onResume(); h.post(tick) }
+    override fun onResume() { super.onResume(); TrustedClock.syncFromNetwork(this); h.post(tick) }
     override fun onPause() { h.removeCallbacks(tick); super.onPause() }
 
     private fun a11yOn(): Boolean =
